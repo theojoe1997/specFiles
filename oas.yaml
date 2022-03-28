@@ -1,0 +1,382 @@
+openapi: '3.0.1'
+
+info:
+  # A functional descriptive name of the API. Required.
+  title: API Mahoda rcVerification
+  # Semantic versioning like 1.0.0 must be used. Required.
+  version: 1.0.0
+  # A proper description of the API in CommonMark or HTML. Required.
+  description: Sample API specification in OpenAPI format which is in complience with Sysco API Guideline.
+  # Contact information of the responsible team: name, email, URL. Required.
+  contact:
+    name: DIM Platform Team
+    email: 000-DIM-Platform-Team@Corp.sysco.com
+    url: "https://sysco.com/"
+  # Specification updated date in full-date format (RFC3339). Required.
+  x-updated-date: 2020-04-28
+  # Intended target audience of the API. Required.
+  x-audience:
+    - sysco-internal
+  # The layer to which API is belong to. Required.
+  x-api-type: channel-service
+  # Unique identifier of the API. Required.
+  x-api-id: bt-test-mock-api
+
+servers:
+  - url: "https://api-gateway-sbx.sysco.com/services/api-spec-linter-v1"
+    description: Gateway URL and base path are used as the server URL in the Spec
+
+paths:
+  '/api-violations':
+    post:
+      summary:
+        API Violations
+      description: |
+        The API Violations endpoint validates given OpenAPI 3.0 specification
+        against Sysco RESTFul API standards.
+
+        A successful response includes the list of violations grouped by
+        the API Guidelines rules.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LintingRequest'
+      parameters:
+        - in: header
+          name: Syy-Correlation-Id    # Hyphenated-pascal-case is preferred for HTTP header fields
+          schema:
+            type: string
+            format: uuid
+        - in: header
+          name: Syy-Request-Id    # Hyphenated-pascal-case is preferred for HTTP header fields
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: OpenAPI specification is OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LintingResponse'
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+              description: The URI where the validation result can be rerequested.
+            Syy-Operation-Id:
+              schema:
+                type: string
+              description: Returns operationId
+        400:
+          description: Input file not parsable
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          headers:
+            Syy-Operation-Id:
+              schema:
+                type: string
+              description: Returns operationId
+        default:
+          description: Error object
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          headers:
+            Syy-Operation-Id:
+              schema:
+                type: string
+              description: Returns operationId
+      security:
+        - oAuth2ClientCredentials: []
+
+  '/supported-rules':
+    get:
+      summary:
+        Suported Rules
+      description: |
+        Returns a list of rules which are supported.
+      parameters:
+        - $ref: '#/components/parameters/RulesType'
+        - $ref: '#/components/parameters/IsActive'
+        - in: header
+          name: Syy-Correlation-Id    # Hyphenated-pascal-case is preferred for HTTP header fields
+          schema:
+            type: string
+            format: uuid
+        - in: header
+          name: Syy-Request-Id    # Hyphenated-pascal-case is preferred for HTTP header fields
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: List of supported rules is successfully returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportedRulesResponse'
+          headers:
+            Syy-Operation-Id:
+              schema:
+                type: string
+              description: Returns operationId
+        400:
+          description: One of the query parameters is incorrect
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          headers:
+            Syy-Operation-Id:
+              schema:
+                type: string
+              description: Returns operationId
+        default:
+          description: Error object
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          headers:
+            Syy-Operation-Id:
+              schema:
+                type: string
+              description: Returns operationId
+      security:
+        - oAuth2ClientCredentials: []
+
+components:
+  # define the security scheme
+  securitySchemes:
+    oAuth2ClientCredentials: # <---- security scheme name
+      type: oauth2
+      description: This API uses OAuth 2 with the client credentials grant flow.
+      flows:
+        clientCredentials: # <---- oauth flow
+          tokenUrl: https://api-gateway-sbx.sysco.com/token
+          scopes: {}
+
+  parameters:
+    RulesType:
+      name: type
+      in: query
+      description: Rules Type
+      required: false
+      schema:
+        type: string
+        x-extensible-enum:
+          - MUST
+          - SHOULD
+          - COULD
+          - MAY
+          - HINT
+    IsActive:
+      name: is_active
+      in: query
+      description: Is Rule Active
+      required: false
+      schema:
+        type: boolean
+
+  schemas:
+    LintingRequest:
+      type: object
+      description: |
+        Request containing a OpenAPI specification definition file. One of the following fields must be provided:
+        api_definition, api_definition_string, or api_definition_url.
+      properties:
+        api_definition:
+          type: object
+          description: Specification object in OpenAPI format
+        api_definition_string:
+          type: string
+          description: Raw API Specification string in OpenAPI format
+        api_definition_url:
+          type: string
+          description: Link to the specification in OpenAPI format
+        ignore_rules:
+          type: array
+          items:
+            type: string
+          description: List of rule ids to be ignored
+
+    LintingResponse:
+      type: object
+      description: Linting Response
+      required:
+        - violations
+        - violations_count
+      properties:
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Violation'
+          description: List of violations
+        message:
+          type: string
+          description: Custom server message
+        violations_count:
+          $ref: '#/components/schemas/ViolationsCount'
+        api_definition:
+          type: string
+          description: Specification object in OpenAPI format
+
+    SupportedRulesResponse:
+      type: object
+      description: Supported Rules
+      required:
+        - supported_rules
+      properties:
+        supported_rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rule'
+
+    Violation:
+      type: object
+      description: Violation Object
+      required:
+        - title
+        - description
+        - violation_type
+        - paths
+      properties:
+        title:
+          type: string
+          description: Violation title
+        description:
+          type: string
+          description: Violation text
+        violation_type:
+          $ref: '#/components/schemas/RuleType'
+        rule_link:
+          type: string
+          description: Violated rule URL
+        paths:
+          type: array
+          items:
+            type: string
+          description: Violated paths
+        pointer:
+          type: string
+          description: JsonPointer to the violated path in the specification
+        start_line:
+          type: integer
+          format: int32
+          example: 1
+          description: The line starting the violated location, if known
+        end_line:
+          type: integer
+          format: int32
+          example: 5
+          description: The line ending the violated location, if known
+
+    ViolationsCount:
+      type: object
+      description: Violation Count
+      required:
+        - must
+        - should
+        - may
+        - could
+        - hint
+      properties:
+        must:
+          type: integer
+          format: int32
+        should:
+          type: integer
+          format: int32
+        may:
+          type: integer
+          format: int32
+        could:
+          type: integer
+          format: int32
+        hint:
+          type: integer
+          format: int32
+
+    Rule:
+      type: object
+      description: Rule
+      required:
+        - title
+        - code
+        - type
+        - url
+        - is_active
+      properties:
+        title:
+          type: string
+          description: Rule title
+          example: 'Do Not Use URI Versioning'
+        code:
+          type: string
+          description: Rule id
+          example: '115'
+        type:
+          $ref: '#/components/schemas/RuleType'
+        url:
+          type: string
+          description: Link to the rule's description
+        is_active:
+          type: boolean
+          description: Shows whether the rule is activated
+          example: true
+
+    RuleType:
+      type: string
+      x-extensible-enum:
+        - MUST
+        - SHOULD
+        - COULD
+        - MAY
+        - HINT
+      description: Rule type / severity
+
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+          description: |
+            An absolute URI that identifies the problem type.  When dereferenced,
+            it SHOULD provide human-readable documentation for the problem type
+            (e.g., using HTML).
+          default: 'about:blank'
+        title:
+          type: string
+          description: |
+            A short, summary of the problem type. Written in english and readable
+            for engineers (usually not suited for non technical stakeholders and
+            not localized); example: Service Unavailable
+        status:
+          type: integer
+          format: int32
+          description: |
+            The HTTP status code generated by the origin server for this occurrence
+            of the problem.
+          minimum: 100
+          maximum: 600
+          exclusiveMaximum: true
+          example: 503
+        detail:
+          type: string
+          description: |
+            A human readable explanation specific to this occurrence of the
+            problem.
+          example: Connection to database timed out
+        instance:
+          type: string
+          format: uri
+          description: |
+            An absolute URI that identifies the specific occurrence of the problem.
+            It may or may not yield further information if dereferenced.
